@@ -23,11 +23,105 @@ const names={home:'Обзор',connect:'Подключение',premium:'Premium
 let sb=null,user=null,profile=null,authMode='login';
 const $=id=>document.getElementById(id);function toast(t){const e=$('toast');e.textContent=t;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),2800)}function message(id,t,kind=''){const e=$(id);e.textContent=t;e.classList.remove('hidden','success','error');if(kind)e.classList.add(kind)}function show(id){document.querySelectorAll('.view').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',x.dataset.view===id));$('crumb').textContent=names[id]||id;window.scrollTo({top:0,behavior:'smooth'})}document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.view)));document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.go)));document.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-choice]').forEach(x=>x.classList.remove('selected'));b.classList.add('selected')}));
 function setAuthMode(mode){authMode=mode;$('authTitle').textContent=mode==='login'?'Вход в аккаунт':'Создать аккаунт';$('authSubmit').textContent=mode==='login'?'Войти':'Зарегистрироваться';$('confirmWrap').classList.toggle('hidden',mode!=='signup');$('forgotBtn').classList.toggle('hidden',mode!=='login');$('tabLogin').className=mode==='login'?'btn':'btn secondary';$('tabSignup').className=mode==='signup'?'btn':'btn secondary';$('authMessage').classList.add('hidden')} $('tabLogin').onclick=()=>setAuthMode('login');$('tabSignup').onclick=()=>setAuthMode('signup');
-function getReferralFromUrl(){return new URLSearchParams(location.search).get('ref')}
+
+function getReferralFromUrl(){
+  const ref = new URLSearchParams(location.search).get('ref');
+
+  if(ref && ref.trim()){
+    localStorage.setItem('shatthow_pending_ref', ref.trim());
+  }
+
+  return localStorage.getItem('shatthow_pending_ref');
+}
+
+getReferralFromUrl();
+
 async function init(){if(!window.supabase){message('authMessage','Не удалось загрузить библиотеку авторизации. Проверьте подключение к интернету.','error');return}if(SUPABASE_URL.startsWith('ВСТАВЬТЕ')||SUPABASE_ANON_KEY.startsWith('ВСТАВЬТЕ')){message('authMessage','Сначала вставьте API URL и Publishable Key в начало скрипта файла. Секретный ключ сюда не вставляйте.','error');return}sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);const{data:{session}}=await sb.auth.getSession();if(session){user=session.user;await enterApp()}sb.auth.onAuthStateChange(async(event,session)=>{if(session&&!user){user=session.user;await enterApp()}else if(!session&&user){user=null;profile=null;$('appShell').classList.add('hidden');$('authScreen').classList.remove('hidden')}})}
-$('authForm').addEventListener('submit',async e=>{e.preventDefault();if(!sb){toast('Сначала настройте Supabase в коде');return}const email=$('authEmail').value.trim(),password=$('authPassword').value;let result;if(authMode==='signup'){if(password!==$('authConfirm').value){message('authMessage','Пароли не совпадают.','error');return}result=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.href}});if(!result.error&&result.data.user){const ref=getReferralFromUrl();if(ref&&result.data.session){await sb.rpc('claim_referral',{p_code:ref})}message('authMessage','Аккаунт создан. Если включено подтверждение Email, проверьте почту и перейдите по ссылке.','success');if(result.data.session){user=result.data.user;await enterApp()}}}else{result=await sb.auth.signInWithPassword({email,password});if(!result.error){user=result.data.user;await enterApp()}}if(result?.error)message('authMessage',result.error.message,'error')});
+
+$('authForm').addEventListener('submit',async e=>{
+  e.preventDefault();
+
+  if(!sb){
+    toast('Сначала настройте Supabase в коде');
+    return;
+  }
+
+  const email=$('authEmail').value.trim();
+  const password=$('authPassword').value;
+  let result;
+
+  if(authMode==='signup'){
+    if(password!==$('authConfirm').value){
+      message('authMessage','Пароли не совпадают.','error');
+      return;
+    }
+
+    result=await sb.auth.signUp({
+      email,
+      password,
+      options:{emailRedirectTo:location.href}
+    });
+
+    if(!result.error && result.data.user){
+      message(
+        'authMessage',
+        'Аккаунт создан. Проверьте почту для подтверждения.',
+        'success'
+      );
+
+      if(result.data.session){
+        user=result.data.user;
+        await enterApp();
+      }
+    }
+  }else{
+    result=await sb.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if(!result.error){
+      user=result.data.user;
+      await enterApp();
+    }
+  }
+
+  if(result?.error){
+    message('authMessage',result.error.message,'error');
+  }
+});
+
 $('forgotBtn').onclick=async()=>{if(!sb)return toast('Сначала настройте Supabase');const email=$('authEmail').value.trim();if(!email)return message('authMessage','Сначала укажите Email.','error');const{error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:location.href});message('authMessage',error?error.message:'Если адрес зарегистрирован, письмо для сброса пароля отправлено.','success')};
-async function enterApp(){if(!user||!sb)return;$('authScreen').classList.add('hidden');$('appShell').classList.remove('hidden');$('profileEmail').textContent=user.email||'—';$('avatar').textContent=(user.email||'S').slice(0,1).toUpperCase();const pendingRef=getReferralFromUrl();if(pendingRef){const{error}=await sb.rpc('claim_referral',{p_code:pendingRef});if(!error){history.replaceState({},'',location.pathname);toast('Приглашение применено: вам начислено 3 дня')}}await loadProfile()}
+
+async function enterApp(){
+  if(!user||!sb)return;
+
+  $('authScreen').classList.add('hidden');
+  $('appShell').classList.remove('hidden');
+
+  $('profileEmail').textContent=user.email||'-';
+  $('avatar').textContent=(user.email||'S').slice(0,1).toUpperCase();
+
+  const pendingRef=getReferralFromUrl();
+
+  if(pendingRef){
+    const {error}=await sb.rpc('claim_referral',{
+      p_code:pendingRef
+    });
+
+    if(!error){
+      localStorage.removeItem('shatthow_pending_ref');
+      history.replaceState({},'',location.pathname);
+      toast('Приглашение применено: вам начислено 3 дня Premium');
+    }else{
+      console.error('Referral error:',error);
+      toast('Не удалось применить приглашение: '+error.message);
+    }
+  }
+
+  await loadProfile();
+}
+
 async function loadProfile(){const{data,error}=await sb.from('profiles').select('*').eq('id',user.id).single();if(error){toast('Не удалось загрузить профиль. Проверьте SQL-схему Supabase.');console.error(error);return}profile=data;const expiry=data.access_expires_at?new Date(data. access_expires_at):null,active=expiry&&expiry>Date.now();const expiryText=expiry?expiry.toLocaleString('ru-RU'):'Нет активного доступа';$('homePlan').textContent=active?(data.plan==='premium'?'Premium · 30 дней':'Пробный доступ'):'Нет доступа';$('homeStatus').textContent=active?'Активен':'Не активирован';$('homeExpiry').textContent=expiryText;$('sideAccess').innerHTML='<span class="dot"></span>'+(active?'Доступ активен':'Доступ не активен');$('sideExpiry').textContent=expiryText;$('profilePlan').textContent=active?(data.plan==='premium'?'Premium':'Пробный доступ'):'Нет доступа';$('profileExpiry').textContent=expiryText;$('profileCode').textContent=data.referral_code;$('refLink').value=location.origin+location.pathname+'?ref='+encodeURIComponent(data.referral_code);const{count}=await sb.from('referrals').select('*',{count:'exact',head:true}).eq('inviter_id',user.id);$('refCount').textContent=count??0}
 $('trialBtn').onclick=async()=>{const{data,error}=await sb.rpc('activate_trial');if(error){toast(error.message.includes('already')?'Пробный период уже использован.':error.message);return}toast('Пробный доступ активирован на 24 часа');await loadProfile()};$('buyBtn').onclick=()=>toast('Оплата подключается отдельно. Списание не производится.');$('requestConfig').onclick=()=>{const e=$('configResult');e.classList.remove('hidden');e.textContent='Запрос: '+document.querySelector('[data-choice].selected').textContent+', '+$('format').value+', '+$('device').value+'. Поставщик конфигураций ещё не подключён, поэтому рабочая ссылка пока не может быть выдана.'};$('howImport').onclick=()=>toast('Happ → «+» → импортируйте ссылку от поставщика.');$('copyRef').onclick=async()=>{try{await navigator.clipboard.writeText($('refLink').value);toast('Реферальная ссылка скопирована')}catch{ $('refLink').select();toast('Выделите и скопируйте ссылку')}};$('logoutBtn').onclick=async()=>{await sb.auth.signOut();user=null;profile=null};$('resetPassword').onclick=async()=>{const{error}=await sb.auth.resetPasswordForEmail(user.email,{redirectTo:location.href});toast(error?error.message:'Письмо для сброса пароля отправлено, если адрес подтверждён.')};init();
 </script></body></html>
