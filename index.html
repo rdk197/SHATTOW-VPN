@@ -140,5 +140,74 @@ if (premiumActive) {
         'Premium активен до ' +
         new Date(data.access_expires_at).toLocaleString('ru-RU');
 }$('homeStatus').textContent=active?'Активен':'Не активирован';$('homeExpiry').textContent=expiryText;$('sideAccess').innerHTML='<span class="dot"></span>'+(active?'Доступ активен':'Доступ не активен');$('sideExpiry').textContent=expiryText;$('profilePlan').textContent=active?(data.plan==='premium'?'Premium':'Пробный доступ'):'Нет доступа';$('profileExpiry').textContent=expiryText;$('profileCode').textContent=data.referral_code;$('refLink').value=location.origin+location.pathname+'?ref='+encodeURIComponent(data.referral_code);const{count}=await sb.from('referrals').select('*',{count:'exact',head:true}).eq('inviter_id',user.id);$('refCount').textContent=count??0}
-$('trialBtn').onclick=async()=>{const{data,error}=await sb.rpc('activate_trial');if(error){toast(error.message.includes('already')?'Пробный период уже использован.':error.message);return}toast('Пробный доступ активирован на 24 часа');await loadProfile()};$('buyBtn').onclick=()=>toast('Оплата подключается отдельно. Списание не производится.');$('requestConfig').onclick=()=>{const e=$('configResult');e.classList.remove('hidden');e.textContent='Запрос: '+document.querySelector('[data-choice].selected').textContent+', '+$('format').value+', '+$('device').value+'. Поставщик конфигураций ещё не подключён, поэтому рабочая ссылка пока не может быть выдана.'};$('howImport').onclick=()=>toast('Happ → «+» → импортируйте ссылку от поставщика.');$('copyRef').onclick=async()=>{try{await navigator.clipboard.writeText($('refLink').value);toast('Реферальная ссылка скопирована')}catch{ $('refLink').select();toast('Выделите и скопируйте ссылку')}};$('logoutBtn').onclick=async()=>{await sb.auth.signOut();user=null;profile=null};$('resetPassword').onclick=async()=>{const{error}=await sb.auth.resetPasswordForEmail(user.email,{redirectTo:location.href});toast(error?error.message:'Письмо для сброса пароля отправлено, если адрес подтверждён.')};init();
+$('trialBtn').onclick=async()=>{const{data,error}=await sb.rpc('activate_trial');if(error){toast(error.message.includes('already')?'Пробный период уже использован.':error.message);return}toast('Пробный доступ активирован на 24 часа');await loadProfile()};$('buyBtn').onclick=()=>toast('Оплата подключается отдельно. Списание не производится.');
+$('requestConfig').onclick = async () => {
+  const e = $('configResult');
+  const btn = $('requestConfig');
+
+  e.classList.remove('hidden');
+  e.textContent = 'Проверяем доступ и ищем конфигурацию...';
+  btn.disabled = true;
+
+  try {
+    if (!sb) throw new Error('Supabase не подключён');
+
+    const { data: { user }, error: authError } = await sb.auth.getUser();
+
+    if (authError || !user) {
+      throw new Error('Сначала войдите в аккаунт');
+    }
+
+    const format = $('format').value;
+    const protocol = format === 'Автоматически' ? null : format;
+
+    const { data, error } = await sb.rpc('get_vpn_config', {
+      p_protocol: protocol
+    });
+
+    if (error) throw error;
+    if (!data || !data.length) {
+      throw new Error('Конфигурации пока не найдены');
+    }
+
+    const config = data[0];
+
+    e.replaceChildren();
+
+    const title = document.createElement('strong');
+    title.textContent = 'Конфигурация готова';
+
+    const info = document.createElement('p');
+    info.textContent = config.protocol + ' · ' + config.country;
+
+    const code = document.createElement('textarea');
+    code.readOnly = true;
+    code.value = config.config_uri;
+    code.style.width = '100%';
+    code.style.minHeight = '85px';
+
+    const copy = document.createElement('button');
+    copy.className = 'btn';
+    copy.textContent = 'Скопировать конфигурацию';
+
+    copy.onclick = async () => {
+      try {
+        await navigator.clipboard.writeText(config.config_uri);
+        copy.textContent = 'Скопировано!';
+      } catch {
+        code.select();
+        document.execCommand('copy');
+        copy.textContent = 'Скопировано!';
+      }
+    };
+
+    e.append(title, info, code, copy);
+
+  } catch (error) {
+    e.textContent = error.message || 'Не удалось получить конфигурацию';
+  } finally {
+    btn.disabled = false;
+  }
+};
+$('howImport').onclick=()=>toast('Happ → «+» → импортируйте ссылку от поставщика.');$('copyRef').onclick=async()=>{try{await navigator.clipboard.writeText($('refLink').value);toast('Реферальная ссылка скопирована')}catch{ $('refLink').select();toast('Выделите и скопируйте ссылку')}};$('logoutBtn').onclick=async()=>{await sb.auth.signOut();user=null;profile=null};$('resetPassword').onclick=async()=>{const{error}=await sb.auth.resetPasswordForEmail(user.email,{redirectTo:location.href});toast(error?error.message:'Письмо для сброса пароля отправлено, если адрес подтверждён.')};init();
 </script></body></html>
