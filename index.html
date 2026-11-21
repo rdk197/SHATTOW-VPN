@@ -140,7 +140,9 @@ if (premiumActive) {
         'Premium активен до ' +
         new Date(data.access_expires_at).toLocaleString('ru-RU');
 }$('homeStatus').textContent=active?'Активен':'Не активирован';$('homeExpiry').textContent=expiryText;$('sideAccess').innerHTML='<span class="dot"></span>'+(active?'Доступ активен':'Доступ не активен');$('sideExpiry').textContent=expiryText;$('profilePlan').textContent=active?(data.plan==='premium'?'Premium':'Пробный доступ'):'Нет доступа';$('profileExpiry').textContent=expiryText;$('profileCode').textContent=data.referral_code;$('refLink').value=location.origin+location.pathname+'?ref='+encodeURIComponent(data.referral_code);const{count}=await sb.from('referrals').select('*',{count:'exact',head:true}).eq('inviter_id',user.id);$('refCount').textContent=count??0}
-$('trialBtn').onclick=async()=>{const{data,error}=await sb.rpc('activate_trial');if(error){toast(error.message.includes('already')?'Пробный период уже использован.':error.message);return}toast('Пробный доступ активирован на 24 часа');await loadProfile()};$('buyBtn').onclick=()=>toast('Оплата подключается отдельно. Списание не производится.');
+$('trialBtn').onclick=async()=>{const{data,error}=await sb.rpc('activate_trial');if(error){toast(error.message.includes('already')?'Пробный период уже использован.':error.message);return}toast('Пробный доступ активирован на 24 часа');await loadProfile()};$('buyBtn').onclick=()=>{const mail=user?.email?` (${user.email})`:'';window.open('https://t.me/MarceI77?text='+encodeURIComponent ('Здравствуйте! Хочу приобрести SHATTHOW Premium на 30 дней'+mail),'_blank');};
+
+
 $('requestConfig').onclick = async () => {
   const e = $('configResult');
   const btn = $('requestConfig');
